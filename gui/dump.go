@@ -2,19 +2,22 @@ package gui
 
 import (
 	"fmt"
-	g "github.com/AllenDang/giu"
-	"github.com/andrewpmartinez/grid/dump"
-	"github.com/sirupsen/logrus"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	g "github.com/AllenDang/giu"
+	"github.com/andrewpmartinez/grid/dump"
+	"github.com/sirupsen/logrus"
 )
 
 type DumpWindow struct {
 	Dump         *dump.Dump
 	masterWindow *g.MasterWindow
+	logger       dump.Logger
 
 	buildFunctionRowsOnce sync.Once
 	functionRows          []*g.TableRowWidget
@@ -23,7 +26,7 @@ type DumpWindow struct {
 	routineText           string
 }
 
-func NewDumpWindow() *DumpWindow {
+func NewDumpWindow(logger dump.Logger) *DumpWindow {
 	editor := g.CodeEditor().
 		ShowWhitespaces(false).
 		TabSize(2).
@@ -32,6 +35,7 @@ func NewDumpWindow() *DumpWindow {
 	return &DumpWindow{
 		buildFunctionRowsOnce: sync.Once{},
 		editor:                editor,
+		logger:                logger,
 	}
 }
 
@@ -53,6 +57,12 @@ func (dumpWindow *DumpWindow) buildRows() []*g.TableRowWidget {
 		maxFuncName := ""
 		maxCount := 0
 		dumpWindow.functionRows = make([]*g.TableRowWidget, dumpWindow.Dump.Stats.RoutinesByFunction.Len())
+
+		type RoutineStats struct {
+			Total  int
+			Widget *g.TableRowWidget
+		}
+		statsSlice := make([]RoutineStats, dumpWindow.Dump.Stats.RoutinesByFunction.Len())
 
 		i := 0
 		for el := dumpWindow.Dump.Stats.RoutinesByFunction.Front(); el != nil; el = el.Next() {
@@ -79,14 +89,28 @@ func (dumpWindow *DumpWindow) buildRows() []*g.TableRowWidget {
 
 			funcLabel := g.Label(funcName)
 
-			dumpWindow.functionRows[i] = g.TableRow(
+			widget := g.TableRow(
 				button,
 				numTotalRoutinesLabel,
 				numUniqueRoutinesLabel,
 				funcLabel,
 			)
 
+			statsSlice[i] = RoutineStats{
+				Total:  numTotalRoutines,
+				Widget: widget,
+			}
+
 			i++
+		}
+
+		sort.Slice(statsSlice, func(i, j int) bool {
+			return statsSlice[i].Total > statsSlice[j].Total
+		})
+
+		for j, stats := range statsSlice {
+			dumpWindow.logger.Infof("Slice sorted: %d #%d", stats.Total, j)
+			dumpWindow.functionRows[j] = stats.Widget
 		}
 
 		//		masterWindow.functionRows[0].BgColor(&(color.RGBA{200, 100, 100, 255}))
@@ -140,10 +164,31 @@ func (dumpWindow *DumpWindow) Run() {
 func (dumpWindow *DumpWindow) OpenFunctionDetail(funcName string) {
 	routineStats := dumpWindow.Dump.Stats.GetRoutinesByFunction(funcName)
 
+	// Sort by occurrences
+	type RoutineStats struct {
+		Total     int
+		Signature string
+		Routines  []*dump.Routine
+	}
+	routinesSlice := make([]RoutineStats, 0, len(routineStats.RoutinesBySignature))
+	for signature, routines := range routineStats.RoutinesBySignature {
+		routinesSlice = append(routinesSlice, RoutineStats{
+			Total:     len(routines),
+			Signature: signature,
+			Routines:  routines,
+		})
+	}
+
+	sort.Slice(routinesSlice, func(i, j int) bool {
+		return routinesSlice[i].Total > routinesSlice[j].Total
+	})
+
 	builder := strings.Builder{}
 	start := time.Now()
-	for signature, routines := range routineStats.RoutinesBySignature {
-		builder.Write([]byte(fmt.Sprintf("Signature: %s\nOccurences: %d \n\n", signature, len(routines))))
+	for _, stats := range routinesSlice {
+		signature := stats.Signature
+		routines := stats.Routines
+		builder.Write([]byte(fmt.Sprintf("Signature: %s\nOccurences: %d \n\n", signature, stats.Total)))
 
 		builder.Write([]byte(routines[0].Raw()))
 		builder.Write([]byte("\n"))

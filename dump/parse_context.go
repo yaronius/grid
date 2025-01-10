@@ -90,7 +90,7 @@ func (c *context) NextLine(line string) {
 func (c *context) handleGoRoutine(line string) {
 	if c.currentRoutine != nil {
 		if !c.lastLineWasBlank {
-			c.logger.Warnf("unexpected go routine on line [%d] already in go routine found at [%d]", c.lineNumber, c.currentRoutine.FileStartLine)
+			//c.logger.Warnf("unexpected go routine on line [%d] already in go routine found at [%d]", c.lineNumber, c.currentRoutine.FileStartLine)
 			if c.lineNumber > 0 {
 				c.currentRoutine.FileEndLine = c.lineNumber - 1 //current line only
 			}
@@ -131,9 +131,9 @@ func (c *context) handleGoRoutine(line string) {
 // above it in the dump.
 func (c *context) handleLocation(line string) {
 	if c.currentFrame == nil {
-		c.logger.Warnf("unexpected location line [%d] not in a function, expected blank line or new function", c.lineNumber)
+		//c.logger.Warnf("unexpected location line [%d] not in a function, expected blank line or new function", c.lineNumber)
 	} else if c.currentFrame.Line != -1 {
-		c.logger.Warnf("unexpected location line [%d] location already parsed for function starting at [%d]", c.lineNumber, c.currentFrame.FileStartLine)
+		//c.logger.Warnf("unexpected location line [%d] location already parsed for function starting at [%d]", c.lineNumber, c.currentFrame.FileStartLine)
 	} else {
 		if location, err := ParseLocationLine(line); err != nil {
 			c.logger.Errorf("could not parse location at [%d]: %v", c.lineNumber, err)
@@ -161,7 +161,7 @@ func (c *context) handleLocation(line string) {
 // // next line, which is a location line.
 func (c *context) handleFunction(line string) {
 	if c.currentFrame != nil {
-		c.logger.Warnf("unexpected function on line [%d] already in a function, expected a location for function from line [%d]", c.lineNumber, c.currentFrame.FileStartLine)
+		//c.logger.Warnf("unexpected function on line [%d] already in a function, expected a location for function from line [%d]", c.lineNumber, c.currentFrame.FileStartLine)
 	} else {
 		function, err := ParseFunctionLine(line)
 
